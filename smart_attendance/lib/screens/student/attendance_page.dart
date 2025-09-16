@@ -1,10 +1,42 @@
 // lib/screens/student/attendance_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:local_auth/error_codes.dart' as auth_error;
+import 'package:local_auth/local_auth.dart';
+
 
 class AttendancePage extends StatelessWidget {
   final String className;
 
-  const AttendancePage({super.key, required this.className});
+   AttendancePage({super.key, required this.className});
+  final LocalAuthentication auth =  LocalAuthentication();
+
+  Future<void> authenticateWithCustomDialogs(BuildContext context) async {
+    try {
+    final bool didAuthenticate = await auth.authenticate(
+    localizedReason: 'Please authenticate to show account balance',
+    options: const AuthenticationOptions(useErrorDialogs: false),
+    );
+    if(didAuthenticate)
+    {ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Biometric Successfull")),
+                );}
+    else 
+    {
+      ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Biometric Unsuccessfull")),
+                );
+    }
+    } on PlatformException catch (e) {
+    if (e.code == auth_error.notAvailable) {
+    print('No hardware available');
+    } else if (e.code == auth_error.notEnrolled) {
+    print('No biometrics enrolled');
+    } else {
+    print('Error: ${e.message}');
+    }
+    }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -33,10 +65,8 @@ class AttendancePage extends StatelessWidget {
               icon: const Icon(Icons.fingerprint),
               label: const Text("Start Biometric Verification"),
               onPressed: () {
-                // TODO: integrate fingerprint & face recognition
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Biometric flow not implemented")),
-                );
+                authenticateWithCustomDialogs(context);
+                
               },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
