@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class TopHeader extends StatelessWidget {
+  const TopHeader({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Container(
