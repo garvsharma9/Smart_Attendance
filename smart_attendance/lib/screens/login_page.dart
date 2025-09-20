@@ -1,9 +1,10 @@
 // lib/screens/login_page.dart
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:smart_attendance/screens/admin/admin_page.dart';
 import 'package:smart_attendance/screens/student/student_home.dart';
 import 'package:smart_attendance/screens/teacher/teacher_home.dart';
-import 'package:smart_attendance/services/api_service.dart'; // ✅ added
+import 'package:smart_attendance/services/api_service.dart';
 import '../widgets/role_card.dart';
 import '../theme.dart';
 
@@ -50,8 +51,10 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void handleLogin() {
+  // Keep logic same — only persist and navigate using Hive
+  Future<void> handleLogin() async {
     bool valid = false;
+    final box = Hive.box('userBox');
 
     if (selectedRole == 'Student') {
       valid = studentRollController.text.isNotEmpty &&
@@ -61,56 +64,62 @@ class _LoginPageState extends State<LoginPage> {
           studentDeptController.text.isNotEmpty;
 
       if (valid) {
-        Navigator.push(
+        // persist student id & role
+        await box.put('role', 'student');
+        await box.put('userId', studentRollController.text.trim());
+
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => StudentHomePage(),
+            builder: (context) => StudentHomePage(studentId: studentRollController.text.trim()),
           ),
         );
       }
-      
     } else if (selectedRole == 'Teacher') {
       valid = teacherNameController.text.isNotEmpty &&
           teacherDeptController.text.isNotEmpty &&
           teacherIdController.text.isNotEmpty; // still required for login form
 
       if (valid) {
-        // ✅ Call API to add teacher
-        ApiService.addTeacher({
-          "name": teacherNameController.text,
-          "department": teacherDeptController.text,
-        }).then((response) {
+        try {
+          final response = await ApiService.addTeacher({
+            "name": teacherNameController.text.trim(),
+            "department": teacherDeptController.text.trim(),
+          });
+
           if (response["success"] == true || response["message"] != null) {
-            Navigator.push(
+            // store teacherId locally (employee id entered in the form)
+            await box.put('role', 'teacher');
+            await box.put('userId', teacherIdController.text.trim());
+
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => TeacherHomePage(
-                  teacherName: teacherNameController.text,
-                ),
+                builder: (context) => TeacherHomePage(teacherId: teacherIdController.text.trim()),
               ),
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(response["message"] ?? "Failed to add teacher")),
+              SnackBar(content: Text(response["message"] ?? "Failed to register teacher")),
             );
           }
-        }).catchError((e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: $e")),
-          );
-        });
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+        }
       }
-
     } else if (selectedRole == 'Administrator') {
       valid = adminNameController.text.isNotEmpty &&
           adminDeptController.text.isNotEmpty &&
           adminIdController.text.isNotEmpty;
 
       if (valid) {
-        Navigator.push(
+        await box.put('role', 'admin');
+        await box.put('userId', adminIdController.text.trim());
+
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => AdminPage(),
+            builder: (context) => AdminPage(adminId: adminIdController.text.trim()),
           ),
         );
       }
@@ -137,19 +146,13 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Login as',
-          style:
-              Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 20),
-        ),
+        Text('Login as', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 20)),
         const SizedBox(height: 14),
         _roleSelectionCard('Student', Icons.school, const Color(0xFFEFF6FF)),
         const SizedBox(height: 10),
-        _roleSelectionCard(
-            'Teacher', Icons.person_search, const Color(0xFFF5F3FF)),
+        _roleSelectionCard('Teacher', Icons.person_search, const Color(0xFFF5F3FF)),
         const SizedBox(height: 10),
-        _roleSelectionCard(
-            'Administrator', Icons.admin_panel_settings, const Color(0xFFF0FDF4)),
+        _roleSelectionCard('Administrator', Icons.admin_panel_settings, const Color(0xFFF0FDF4)),
       ],
     );
   }
@@ -160,46 +163,22 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         const Text('Student Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
-        TextField(
-          controller: studentRollController,
-          decoration: const InputDecoration(labelText: 'Roll Number'),
-        ),
+        TextField(controller: studentRollController, decoration: const InputDecoration(labelText: 'Roll Number')),
         const SizedBox(height: 8),
-        TextField(
-          controller: studentNameController,
-          decoration: const InputDecoration(labelText: 'Name'),
-        ),
+        TextField(controller: studentNameController, decoration: const InputDecoration(labelText: 'Name')),
         const SizedBox(height: 8),
-        TextField(
-          controller: studentBranchController,
-          decoration: const InputDecoration(labelText: 'Branch'),
-        ),
+        TextField(controller: studentBranchController, decoration: const InputDecoration(labelText: 'Branch')),
         const SizedBox(height: 8),
-        TextField(
-          controller: studentSectionController,
-          decoration: const InputDecoration(labelText: 'Section'),
-        ),
+        TextField(controller: studentSectionController, decoration: const InputDecoration(labelText: 'Section')),
         const SizedBox(height: 8),
-        TextField(
-          controller: studentDeptController,
-          decoration: const InputDecoration(labelText: 'Department'),
-        ),
+        TextField(controller: studentDeptController, decoration: const InputDecoration(labelText: 'Department')),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: handleLogin,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text('Login'),
-            ),
-          ),
+          child: ElevatedButton(onPressed: handleLogin, child: const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('Login'))),
         ),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => setState(() => selectedRole = null),
-          child: const Text('Back to role selection'),
-        ),
+        TextButton(onPressed: () => setState(() => selectedRole = null), child: const Text('Back to role selection')),
       ],
     );
   }
@@ -210,36 +189,18 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         const Text('Teacher Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
-        TextField(
-          controller: teacherNameController,
-          decoration: const InputDecoration(labelText: 'Name'),
-        ),
+        TextField(controller: teacherNameController, decoration: const InputDecoration(labelText: 'Name')),
         const SizedBox(height: 8),
-        TextField(
-          controller: teacherDeptController,
-          decoration: const InputDecoration(labelText: 'Department'),
-        ),
+        TextField(controller: teacherDeptController, decoration: const InputDecoration(labelText: 'Department')),
         const SizedBox(height: 8),
-        TextField(
-          controller: teacherIdController,
-          decoration: const InputDecoration(labelText: 'Employee ID'),
-        ),
+        TextField(controller: teacherIdController, decoration: const InputDecoration(labelText: 'Employee ID')),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: handleLogin,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text('Login'),
-            ),
-          ),
+          child: ElevatedButton(onPressed: handleLogin, child: const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('Login'))),
         ),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => setState(() => selectedRole = null),
-          child: const Text('Back to role selection'),
-        ),
+        TextButton(onPressed: () => setState(() => selectedRole = null), child: const Text('Back to role selection')),
       ],
     );
   }
@@ -250,36 +211,18 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         const Text('Administrator Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
-        TextField(
-          controller: adminNameController,
-          decoration: const InputDecoration(labelText: 'Name'),
-        ),
+        TextField(controller: adminNameController, decoration: const InputDecoration(labelText: 'Name')),
         const SizedBox(height: 8),
-        TextField(
-          controller: adminDeptController,
-          decoration: const InputDecoration(labelText: 'Department'),
-        ),
+        TextField(controller: adminDeptController, decoration: const InputDecoration(labelText: 'Department')),
         const SizedBox(height: 8),
-        TextField(
-          controller: adminIdController,
-          decoration: const InputDecoration(labelText: 'Admin ID'),
-        ),
+        TextField(controller: adminIdController, decoration: const InputDecoration(labelText: 'Admin ID')),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: handleLogin,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text('Login'),
-            ),
-          ),
+          child: ElevatedButton(onPressed: handleLogin, child: const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('Login'))),
         ),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => setState(() => selectedRole = null),
-          child: const Text('Back to role selection'),
-        ),
+        TextButton(onPressed: () => setState(() => selectedRole = null), child: const Text('Back to role selection')),
       ],
     );
   }
@@ -299,42 +242,25 @@ class _LoginPageState extends State<LoginPage> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Top header
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppTheme.primary, AppTheme.accent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'SmartAttend',
-                  style: titleStyle,
-                  textAlign: TextAlign.center,
-                ),
+          child: Column(children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [AppTheme.primary, AppTheme.accent], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 18),
-
-              // Card with role selection or form
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: roleForm(),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              Text('Version 0.1 • Demo', style: Theme.of(context).textTheme.bodyMedium),
-            ],
-          ),
+              child: Text('SmartAttend', style: titleStyle, textAlign: TextAlign.center),
+            ),
+            const SizedBox(height: 18),
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(padding: const EdgeInsets.all(16.0), child: roleForm()),
+            ),
+            const SizedBox(height: 12),
+            Text('Version 0.1 • Demo', style: Theme.of(context).textTheme.bodyMedium),
+          ]),
         ),
       ),
     );

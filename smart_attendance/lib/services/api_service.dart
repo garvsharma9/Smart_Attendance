@@ -1,112 +1,121 @@
+// lib/services/api_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Replace with your laptop's IPv4
   static String baseUrl = 'http://10.126.146.104:5000';
 
-  /// Add a new Class with subject name + teacher + year + section
+  /// Add a new Class
   static Future<Map<String, dynamic>> addClass(Map<String, dynamic> classData) async {
     final url = Uri.parse('$baseUrl/add_class');
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(classData),
-    );
-    return _handleResponse(response);
+    final resp = await http.post(url,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(classData));
+    return _handleResponse(resp);
   }
 
-  /// Add a new Student
+  /// Add student
   static Future<Map<String, dynamic>> addStudent(Map<String, dynamic> studentData) async {
     final url = Uri.parse('$baseUrl/add_student');
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(studentData),
-    );
-    return _handleResponse(response);
+    final resp = await http.post(url,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(studentData));
+    return _handleResponse(resp);
   }
 
-  /// Enroll Student into a Class
-  static Future<Map<String, dynamic>> enrollStudent(Map<String, dynamic> enrollmentData) async {
+  /// Enroll student into class
+  static Future<Map<String, dynamic>> enrollStudent(Map<String, dynamic> data) async {
     final url = Uri.parse('$baseUrl/enroll_student');
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(enrollmentData),
-    );
-    return _handleResponse(response);
+    final resp = await http.post(url,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(data));
+    return _handleResponse(resp);
   }
 
-  /// Assign Teacher to an existing Class
-  static Future<Map<String, dynamic>> assignTeacher(Map<String, dynamic> teacherData) async {
+  /// Assign teacher (used by admin)
+  static Future<Map<String, dynamic>> assignTeacher(Map<String, dynamic> data) async {
     final url = Uri.parse('$baseUrl/assign_teacher');
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(teacherData),
-    );
-    return _handleResponse(response);
+    final resp = await http.post(url,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(data));
+    return _handleResponse(resp);
   }
 
-  /// Fetch all Classes
-  static Future<List<dynamic>> getClasses() async {
-    final url = Uri.parse('$baseUrl/get_classes'); // Backend endpoint for fetching classes
-    final response = await http.get(url);
+  /// Add teacher (called on teacher login)
+  static Future<Map<String, dynamic>> addTeacher(Map<String, dynamic> data) async {
+    final url = Uri.parse('$baseUrl/add_teacher');
+    final resp = await http.post(url,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(data));
+    return _handleResponse(resp);
+  }
 
-    if (response.statusCode == 200) {
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          return decoded;
-        } else if (decoded is Map && decoded.containsKey("classes")) {
-          return decoded["classes"] as List<dynamic>;
-        } else {
-          throw Exception("Unexpected response format: $decoded");
-        }
-      } catch (e) {
-        throw Exception("Failed to parse classes: $e");
-      }
+  /// Get teachers list
+  static Future<List<dynamic>> getTeachers() async {
+    final url = Uri.parse('$baseUrl/get_teachers');
+    final resp = await http.get(url);
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body);
     } else {
-      throw Exception('Failed to fetch classes: ${response.statusCode} → ${response.body}');
+      throw Exception('Failed to load teachers: ${resp.statusCode} ${resp.body}');
     }
   }
 
-  /// Add a new Teacher
-static Future<Map<String, dynamic>> addTeacher(Map<String, dynamic> teacherData) async {
-  final url = Uri.parse('$baseUrl/add_teacher');
-  final response = await http.post(
-    url,
-    headers: {"Content-Type": "application/json"},
-    body: jsonEncode(teacherData),
-  );
-  return _handleResponse(response);
-}
+  /// Get classes assigned to a teacher
+  static Future<List<dynamic>> getTeacherClasses(String teacherId) async {
+    final url = Uri.parse('$baseUrl/get_teacher_classes/$teacherId');
+    final resp = await http.get(url);
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body);
+    } else {
+      throw Exception('Failed to load teacher classes: ${resp.statusCode} ${resp.body}');
+    }
+  }
 
+  /// Fetch all classes
+  static Future<List<dynamic>> getClasses() async {
+    final url = Uri.parse('$baseUrl/get_classes');
+    final resp = await http.get(url);
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body);
+    } else {
+      throw Exception('Failed to fetch classes: ${resp.statusCode} ${resp.body}');
+    }
+  }
 
-  /// Common Response Handler
+  /// Verify the scanned QR/link with backend.
+  /// The backend should accept JSON { "link": "<scannedString>" } and return something like { "valid": true }
+  static Future<Map<String, dynamic>> verifyAttendanceLink(String link) async {
+    final url = Uri.parse('$baseUrl/verify_link'); // make sure backend exposes this endpoint
+    final resp = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"link": link}),
+    );
+    return _handleResponse(resp);
+  }
+
+  /// Mark attendance (after biometric confirmed)
+  /// Expects backend /mark_attendance to accept JSON:
+  /// { "class_id": CLASS_ID, "student_id": STUDENT_ID, "date": "YYYY-MM-DD", "status": "Present" }
+  static Future<Map<String, dynamic>> markAttendance(Map<String, dynamic> data) async {
+    final url = Uri.parse('$baseUrl/mark_attendance');
+    final resp = await http.post(url,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(data));
+    return _handleResponse(resp);
+  }
+
+  /// Common response handler
   static Map<String, dynamic> _handleResponse(http.Response response) {
     try {
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        } else {
-          return {"success": true, "message": "Request successful"};
-        }
+      final body = response.body;
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
       } else {
-        return {
-          "success": false,
-          "message": "Failed request: ${response.statusCode}",
-          "body": response.body,
-        };
+        return {"success": true, "data": decoded};
       }
     } catch (e) {
-      return {
-        "success": false,
-        "message": "Error parsing response: $e",
-        "raw": response.body,
-      };
+      if (response.statusCode == 200) {
+        return {"success": true, "message": response.body};
+      } else {
+        return {"success": false, "message": "HTTP ${response.statusCode}", "raw": response.body};
+      }
     }
   }
 }

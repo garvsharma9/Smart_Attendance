@@ -1,40 +1,57 @@
-// lib/screens/teacher_home.dart
+// lib/screens/teacher/teacher_home.dart
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'session_page.dart';
+import 'package:hive/hive.dart';
+import 'package:smart_attendance/services/api_service.dart';
+import 'package:smart_attendance/screens/teacher/qr_page.dart';
 
 class TeacherHomePage extends StatefulWidget {
-  final String teacherName; // teacher info from login
-  const TeacherHomePage({super.key, required this.teacherName});
+  final String teacherId;
+  const TeacherHomePage({super.key, required this.teacherId});
 
   @override
   State<TeacherHomePage> createState() => _TeacherHomePageState();
 }
 
 class _TeacherHomePageState extends State<TeacherHomePage> {
-  // Sample data for all classes
-  final List<Map<String, dynamic>> allClasses = [
-    {'name': 'CS-A', 'students': 30, 'teacher': 'Alice'},
-    {'name': 'CS-B', 'students': 28, 'teacher': 'Bob'},
-    {'name': 'EE-A', 'students': 32, 'teacher': 'Alice'},
-    {'name': 'ME-A', 'students': 25, 'teacher': 'Charlie'},
-  ];
-
-  List<Map<String, dynamic>> teacherClasses = [];
+  List<dynamic> assignedClasses = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // Filter classes for the logged-in teacher
-    teacherClasses = allClasses
-        .where((c) => c['teacher'] == widget.teacherName)
-        .toList();
+    _fetchClasses();
   }
 
-  void _openSession(String className) {
+  Future<void> _fetchClasses() async {
+    try {
+      final classes = await ApiService.getAssignedClasses(widget.teacherId);
+      setState(() {
+        assignedClasses = classes;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching classes: $e")),
+      );
+    }
+  }
+
+  void _logout() async {
+    final box = Hive.box('userBox');
+    await box.clear();
+    Navigator.pushReplacementNamed(context, '/');
+  }
+
+  void _openQR(int classId) {
+    final random = Random().nextInt(1000000);
+    final qrString = "${widget.teacherId}|$classId|$random";
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SessionPage(className: className),
+        builder: (_) => QRPage(qrData: qrString),
       ),
     );
   }
@@ -43,54 +60,27 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Welcome, ${widget.teacherName}"),
-        backgroundColor: const Color(0xFF3B82F6),
-        elevation: 2,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context); // Go back to login/previous screen
-          },
-        ),
+        title: const Text("Teacher Dashboard"),
+        actions: [
+          IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView.builder(
-          itemCount: teacherClasses.length,
-          itemBuilder: (_, index) {
-            final classData = teacherClasses[index];
-            return Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              elevation: 4,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                title: Text(
-                  classData['name'],
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(
-                  "${classData['students']} students enrolled",
-                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                ),
-                trailing: ElevatedButton(
-                  onPressed: () => _openSession(classData['name']),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: assignedClasses.length,
+              itemBuilder: (_, index) {
+                final classData = assignedClasses[index];
+                return ListTile(
+                  title: Text("Class: ${classData['class_name']}"),
+                  subtitle: Text("ID: ${classData['class_id']}"),
+                  trailing: ElevatedButton(
+                    onPressed: () => _openQR(classData['class_id']),
+                    child: const Text("Show QR"),
                   ),
-                  child: const Text("Open"),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+                );
+              },
+            ),
     );
   }
 }
