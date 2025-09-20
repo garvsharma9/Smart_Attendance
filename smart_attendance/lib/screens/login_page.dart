@@ -77,7 +77,7 @@ class _LoginPageState extends State<LoginPage> {
       if (valid) {
         // ✅ Call API to add teacher
         ApiService.addTeacher({
-          "teacher_name": teacherNameController.text,
+          "name": teacherNameController.text,
           "department": teacherDeptController.text,
         }).then((response) {
           if (response["success"] == true || response["message"] != null) {
