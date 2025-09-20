@@ -25,7 +25,7 @@ class _AddClassPageState extends State<AddClassPage> {
         "subject_name": _subjectController.text,
         "teacher_id": int.tryParse(_teacherIdController.text),
         "year": int.tryParse(_yearController.text),
-        "class": _sectionController.text,
+        "section": _sectionController.text,
       });
 
       // Show success message

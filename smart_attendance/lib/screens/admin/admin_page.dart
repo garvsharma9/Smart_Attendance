@@ -47,7 +47,7 @@ class _AdminPageState extends State<AdminPage> {
       MaterialPageRoute(
         builder: (_) => ClassDetailPage(
           classId: classData["id"],
-          className: "${classData["subject_name"]} - ${classData["class"]}",
+          className: "${classData["subject_name"]} - ${classData["section"]}",
         ),
       ),
     );
@@ -77,7 +77,7 @@ class _AdminPageState extends State<AdminPage> {
                   itemBuilder: (_, index) {
                     final classData = classes[index];
                     return ListTile(
-                      title: Text("${classData["subject_name"]} (${classData["class"]})"),
+                      title: Text("${classData["subject_name"]} (${classData["section"]})"),
                       subtitle: Text(
                         "Year: ${classData["year"] ?? "-"} • Teacher: ${classData["teacher_id"] ?? "Not Assigned"}",
                       ),
